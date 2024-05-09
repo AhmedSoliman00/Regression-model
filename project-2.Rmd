@@ -1,0 +1,284 @@
+---
+title: "project"
+output: html_document
+date: "2024-05-04"
+---
+
+
+
+```{r}
+ #install.packages("olsrr")
+ #install.packages("car")
+ #install.packages("broom")
+  #install.packages("tidyverse")
+  #install.packages("caret")
+
+library(tidyverse)          # Pipe operator (%>%) and other commands
+library(caret)              # Random split of data/cross validation
+library(olsrr)              # Heteroscedasticity Testing (ols_test_score)
+library(car)                # Muticolinearity detection (vif)
+library(broom)              # Diagnostic Metric Table (augment)
+```
+
+ Exploring Data set
+
+```{r}
+data = read.csv("advertising.csv" , header = T)
+```
+
+```{r}
+head(data)
+```
+```{r}
+# Getting Structure of whole data set
+str(data)
+```
+1- There are 200 rows and 4 variables.
+2- Variables are : TV,Radio,Newspaper,Sales
+3- All are numeric variables.
+
+
+```{r}
+# Checking Outliers
+boxplot(data)
+```
+The above plot shows that two outliers are present in the variable "Newspaper". Just remove these outliers by the following command
+
+```{r}
+data <- data[-which(data$Newspaper %in% boxplot.stats(data$Newspaper)$out), ]
+```
+
+```{r}
+# Again Checking Outliers
+boxplot(data)
+```
+```{r}
+# Checking Missing Values
+table(is.na(data))
+```
+
+The above output shows that there is no missing value in the given data set.
+
+```{r}
+# Scatter Plot between TV and Sales
+plot(data$TV , data$Sales)
+```
+Notice, there is a small curvilinear relationship between TV and Sales.
+```{r}
+# Scatter Plot between Radio and Sales
+plot(data$Radio , data$Sales)
+```
+Notice, there is a curvilinear relationship between Radio and Sales.
+
+
+```{r}
+# Scatter Plot between Newspaper and Sales
+plot(data$Newspaper , data$Sales)
+```
+Low linear relationship between Newspaper and Sales variable
+
+
+```{r}
+# Scatter Plot between TV and Radio
+plot(data$TV , data$Radio)
+```
+No linear relationship between TV and Radio variable.
+
+```{r}
+# Scatter Plot between Newspaper and TV
+plot(data$TV , data$Newspaper)
+```
+No linear relationship between TV and Newspaper variable.
+```{r}
+plot(data$Radio , data$Newspaper)
+```
+Moderate linear relationship between Radio and Newspaper variable.
+
+
+
+
+split the whole data set into two parts. One part is known as train data set and other is test data set. We do this because first we train/fit the model using train data set and then use the test data set to check the performance of the obtained model on new data set that has not been used during training period. Splitting is done by the following code
+
+```{r}
+# Randomly Split the data into training and test set
+set.seed(123)
+training.samples <- data$Sales %>%
+  createDataPartition(p = 0.75, list = FALSE)
+train.data  <- data[training.samples, ]
+test.data <- data[-training.samples, ]
+```
+
+Fitting Simple Linear Regression
+
+
+```{r}
+# Fitting Sales ~ TV
+sm1 <- lm(Sales ~ TV , data = train.data)
+
+# Take a look on summary of the model
+summary(sm1)
+```
+1- This model with TV as predictor explains approximately 81% variability of target (Sales).
+
+2- Residual standard error for the model is 2.29
+
+```{r}
+# Fitting Sales ~ Radio
+sm2 <- lm(Sales ~ Radio , data = train.data)
+
+# Take a look on summary of the model
+summary(sm2)
+```
+This model with TV as predictor explains approximately 13% variability of target (Sales).
+
+Residual standard error for the model is 4.917
+
+```{r}
+# Fitting Sales ~ Newspaper
+sm3 <- lm(Sales ~ Newspaper , data = train.data)
+
+# Take a look on summary of the model
+summary(sm3)
+```
+1- This model with TV as predictor explains approximately 2% variability of target (Sales).
+2- Residual standard error for the model is 5.21
+
+
+Till now, we have obtained that Simple Linear Regression Model with TV as predictor is explaining more variability of target (Sales).
+
+Just draw Scatter plot between TV and Sales and also draw the Simple Linear Regression Line in the plot as follows -
+
+```{r}
+# Scatter plot with Simple Linear Regression Line
+plot(train.data$TV , train.data$Sales)
+
+# Adding Regression Line
+abline(lm(train.data$Sales ~ train.data$TV) , col = "blue")
+```
+```{r}
+# Predicting on the test data
+test.data$predicted_sales_simple <- predict(sm1, newdata = test.data)
+
+# Calculating residual errors
+test.data$residuals_simple <- test.data$Sales - test.data$predicted_sales_simple
+
+# Comparing actual vs predicted values
+head(test.data[, c("Sales", "predicted_sales_simple", "residuals_simple")])
+```
+if we use single predictor then we completely neglect the effect of rest two other predictors on Sales, that may not be the case in real. So, why not extend this model ?
+
+Fitting Multiple Linear Regression with Diagnostic Plot
+
+include the predictor Radio
+
+Why we include Radio at this stage ?
+
+Because it explains more variability (13%) of Sales in comparison to Newspaper (2%) after TV (81%). ---> Results from Simple Linear Regression has been used here.
+
+
+
+
+So, Fit a Multiple Linear Regression model with two predictors TV and Radio and obtain summary of the model
+```{r}
+# Fitting MLR model with predictors TV and Radio 
+mm1 <- lm(Sales ~ TV + Radio , data = train.data)
+
+# Take a look on summary of the model
+summary(mm1)
+```
+This model with TV and Radio as predictors explains approximately 89% variability of target (Sales) that is a better indication with respect to the model with TV alone as predictor.
+
+Residual standard error for the model is 1.715
+
+Hence, Adopt the model Sales ~ 0.05462 TV + 0.10239 Radio at this stage.
+
+
+
+
+
+
+
+Include the third predictor Newspaper also in your multiple linear regression model
+
+```{r}
+# Extending further the MLR including the predictor Newspaper
+mm2 <- lm(Sales ~ TV + Radio + Newspaper , data = train.data)
+
+# Take a look on summary of the model
+summary(mm2)
+```
+Adjusted R-squared has been reduced 89.41 to 89.35
+
+Residual standard error has been increased from 1.715 to 1.72
+
+
+
+So, we have sufficient evidence from the data for not to include the Newspaper as predictor in the model.
+
+Hence, Remove it from the model and we get the model as in previously fitted multiple linear regression model already stored in R-object mm1
+
+
+
+
+
+Diagnostic Plots 
+
+
+Residual plot is used to check the first assumption, Linearity
+```{r}
+# Residual Plot
+plot(mm1 , 1)
+```
+Making predictions with the multiple
+
+```{r}
+# Predicting on the test data
+test.data$predicted_sales_simple <- predict(sm1, newdata = test.data)
+
+# Calculating residual errors
+test.data$residuals_simple <- test.data$Sales - test.data$predicted_sales_simple
+
+# Comparing actual vs predicted values
+sample(test.data[, c("Sales", "predicted_sales_simple", "residuals_simple")])
+
+# Predicting on the test data
+test.data$predicted_sales_multiple <- predict(mm1, newdata = test.data)
+
+# Calculating residual errors
+test.data$residuals_multiple <- test.data$Sales - test.data$predicted_sales_multiple
+
+# Comparing actual vs predicted values
+sample(test.data[, c("Sales", "predicted_sales_multiple", "residuals_multiple")])
+
+```
+
+
+
+```{r}
+library(ggplot2)
+
+# Plot for simple model (sm1)
+plot_simple <- ggplot(test.data, aes(x = Sales, y = predicted_sales_simple)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(title = "Actual vs Predicted Sales (Simple Model)",
+       x = "Actual Sales",
+       y = "Predicted Sales")
+
+# Plot for multiple model (mm1)
+plot_multiple <- ggplot(test.data, aes(x = Sales, y = predicted_sales_multiple)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(title = "Actual vs Predicted Sales (Multiple Model)",
+       x = "Actual Sales",
+       y = "Predicted Sales")
+
+
+
+# Displaying plots
+plot_simple
+plot_multiple
+
+
+```
+
